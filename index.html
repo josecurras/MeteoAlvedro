@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <title>Alvedro METAR (LECO)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { 
+      background-color: #0f172a; 
+      color: #f8fafc; 
+      font-family: system-ui, -apple-system, sans-serif; 
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card { background: #1e293b; border: 1px solid #334155; }
+  </style>
+</head>
+<body class="p-3 sm:p-6 min-h-screen pb-10">
+  <div class="max-w-4xl mx-auto space-y-4">
+
+    <!-- Cabecera adaptada a móvil -->
+    <header class="card rounded-2xl p-4 sm:p-6 flex flex-col gap-4 shadow-lg">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 bg-sky-600 rounded-xl text-white shadow-md">
+            <i class="fa-solid fa-plane-arrival text-2xl"></i>
+          </div>
+          <div>
+            <h1 class="text-lg sm:text-2xl font-bold tracking-tight leading-tight">Alvedro (A Coruña)</h1>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="text-xs font-mono text-sky-400 bg-sky-950/80 border border-sky-800/60 px-1.5 py-0.5 rounded">LECO</span>
+              <span id="contadorTexto" class="text-xs text-amber-400 font-mono">Iniciando...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <button id="btnLectura" onclick="forzarLecturaManual()" class="w-full py-3.5 bg-sky-600 active:bg-sky-500 active:scale-[0.99] transition-all text-white font-semibold rounded-xl flex items-center justify-center gap-2.5 shadow-lg shadow-sky-500/20 text-base">
+        <i id="btnIcon" class="fa-solid fa-arrows-rotate"></i>
+        <span id="btnText">Leer Reporte METAR</span>
+      </button>
+    </header>
+
+    <div id="statusAlert" class="hidden rounded-xl p-3.5 text-xs sm:text-sm font-medium"></div>
+
+    <!-- Indicadores Principales (2x2 en móvil, 4 columnas en horizontal) -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      
+      <!-- Temperatura -->
+      <div class="card p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-400 mb-1">
+          <span class="text-[11px] uppercase font-semibold tracking-wider">Temp.</span>
+          <i class="fa-solid fa-temperature-three-quarters text-rose-400"></i>
+        </div>
+        <div class="text-2xl sm:text-3xl font-bold text-white" id="valTemp">-- °C</div>
+        <span class="text-[11px] text-slate-400 mt-1" id="valPuntoRocio">Rocío: --</span>
+      </div>
+
+      <!-- Humedad Relativa -->
+      <div class="card p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-400 mb-1">
+          <span class="text-[11px] uppercase font-semibold tracking-wider">Humedad</span>
+          <i class="fa-solid fa-droplet text-cyan-400"></i>
+        </div>
+        <div class="text-2xl sm:text-3xl font-bold text-white" id="valHumedad">-- %</div>
+        <span class="text-[11px] text-slate-400 mt-1">Magnus-Tetens</span>
+      </div>
+
+      <!-- Presión (QNH) -->
+      <div class="card p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-400 mb-1">
+          <span class="text-[11px] uppercase font-semibold tracking-wider">Presión</span>
+          <i class="fa-solid fa-gauge text-amber-400"></i>
+        </div>
+        <div class="text-2xl sm:text-3xl font-bold text-white" id="valPresion">--</div>
+        <span class="text-[11px] text-slate-400 mt-1">hPa (QNH)</span>
+      </div>
+
+      <!-- Viento y Racha -->
+      <div class="card p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-400 mb-1">
+          <span class="text-[11px] uppercase font-semibold tracking-wider">Viento</span>
+          <i class="fa-solid fa-wind text-emerald-400"></i>
+        </div>
+        <div class="text-2xl sm:text-3xl font-bold text-white" id="valViento">--</div>
+        <span class="text-[11px] text-slate-300 font-medium mt-1 truncate" id="valRacha">km/h • --</span>
+      </div>
+
+    </section>
+
+    <!-- Gráfica de evolución temporal -->
+    <section class="card p-4 sm:p-6 rounded-2xl shadow-lg">
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-1">
+        <h2 class="text-base sm:text-lg font-bold">Evolución últimas 24h</h2>
+        <span id="ultimaActualizacion" class="text-xs font-mono bg-slate-800 px-2.5 py-1 rounded-lg text-slate-300 w-fit">Sin lecturas</span>
+      </div>
+      <div class="h-64 sm:h-80 w-full">
+        <canvas id="graficaMetar"></canvas>
+      </div>
+    </section>
+
+    <!-- Reporte Crudo METAR -->
+    <section class="card p-4 sm:p-5 rounded-2xl shadow-lg space-y-2">
+      <span class="text-[11px] uppercase font-semibold text-slate-400 tracking-wider">Despacho Oficial METAR</span>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-xs sm:text-sm text-sky-400 break-words" id="rawMetar">
+        Esperando consulta...
+      </div>
+    </section>
+
+    <!-- JSON -->
+    <details class="card rounded-2xl overflow-hidden">
+      <summary class="p-4 cursor-pointer font-semibold text-xs sm:text-sm text-slate-400">Ver JSON crudo recibido</summary>
+      <div class="p-3 bg-slate-900 border-t border-slate-800">
+        <pre id="jsonViewer" class="text-[11px] font-mono text-emerald-400 max-h-56 overflow-y-auto whitespace-pre-wrap">Esperando datos...</pre>
+      </div>
+    </details>
+
+  </div>
+
+  <script>
+    let chartInstance = null;
+    const INTERVALO_MS = 30 * 60 * 1000; // 30 minutos en milisegundos
+    let marcaProximaLectura = Date.now() + INTERVALO_MS;
+    let ultimaLecturaExitosa = 0;
+
+    // Fórmula psicrométrica Magnus-Tetens
+    function calcularHumedadRelativa(t, td) {
+      if (t == null || td == null) return null;
+      const num = Math.exp((17.27 * td) / (237.7 + td));
+      const den = Math.exp((17.27 * t) / (237.7 + t));
+      return Math.min(100, Math.max(0, Math.round(100 * (num / den))));
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('graficaMetar').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Temp (°C)', borderColor: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.08)', yAxisID: 'yTemp', tension: 0.3, fill: true, pointRadius: 2, data: [] },
+            { label: 'HR (%)', borderColor: '#06b6d4', yAxisID: 'yHum', borderDash: [3, 3], tension: 0.3, pointRadius: 0, data: [] },
+            { label: 'Viento (km/h)', borderColor: '#10b981', yAxisID: 'yViento', tension: 0.2, pointRadius: 1, data: [] },
+            { label: 'Racha (km/h)', borderColor: '#f59e0b', pointBackgroundColor: '#f59e0b', yAxisID: 'yViento', borderDash: [5, 5], tension: 0.2, pointRadius: 2, data: [] }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', maxTicksLimit: 8, font: { size: 10 } } },
+            yTemp: { type: 'linear', position: 'left', grid: { color: '#334155' }, ticks: { color: '#f43f5e', font: { size: 10 } } },
+            yHum: { type: 'linear', position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, ticks: { color: '#06b6d4', font: { size: 10 } } },
+            yViento: { type: 'linear', position: 'right', min: 0, grid: { drawOnChartArea: false }, ticks: { color: '#10b981', font: { size: 10 } } }
+          },
+          plugins: { legend: { labels: { color: '#f8fafc', boxWidth: 12, font: { size: 11 } } } }
+        }
+      });
+    }
+
+    // Control de tiempo basado en reloj real (resiste suspensiones del teléfono)
+    function actualizarReloj() {
+      const ahora = Date.now();
+      const restante = Math.max(0, marcaProximaLectura - ahora);
+
+      if (restante === 0) {
+        consultar();
+        marcaProximaLectura = Date.now() + INTERVALO_MS;
+      } else {
+        const totalSeg = Math.floor(restante / 1000);
+        const min = Math.floor(totalSeg / 60);
+        const seg = totalSeg % 60;
+        document.getElementById('contadorTexto').innerText = `Siguiente: ${min}m ${seg < 10 ? '0' + seg : seg}s`;
+      }
+    }
+
+    function forzarLecturaManual() {
+      marcaProximaLectura = Date.now() + INTERVALO_MS;
+      consultar();
+    }
+
+    // DETECCIÓN DE VISIBILIDAD EN MÓVIL
+    // Si el móvil estaba bloqueado o en segundo plano y han pasado 30 min, actualiza al instante al abrir
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        const tiempoTranscurrido = Date.now() - ultimaLecturaExitosa;
+        if (tiempoTranscurrido >= INTERVALO_MS) {
+          marcaProximaLectura = Date.now() + INTERVALO_MS;
+          consultar();
+        }
+      }
+    });
+
+    // Guardamos el historial en memoria local del teléfono para trazar la gráfica progresivamente
+let historialLocal = JSON.parse(localStorage.getItem('metar_leco_hist') || '[]');
+
+async function consultar() {
+  const btn = document.getElementById('btnLectura');
+  const icon = document.getElementById('btnIcon');
+  const txt = document.getElementById('btnText');
+  const alert = document.getElementById('statusAlert');
+
+  btn.disabled = true;
+  icon.classList.add('fa-spin');
+  txt.innerText = 'Leyendo METAR...';
+  alert.className = 'hidden';
+
+  try {
+    // Endpoint GeoJSON en tiempo real (respuesta instantánea con CORS abierto)
+    const url = 'https://mesonet.agron.iastate.edu/geojson/network/ES__ASOS.geojson';
+    
+    const res = await fetch(url, { 
+      method: 'GET',
+      cache: 'no-store',
+      mode: 'cors'
+    });
+    
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    
+    // Localizar la estación LECO (Alvedro) dentro de la red española
+    const estacion = data.features.find(f => f.id === 'LECO' || f.properties.station === 'LECO');
+    if (!estacion) throw new Error("Estación LECO no encontrada en el feed.");
+
+    const p = estacion.properties;
+    const lecturaActual = {
+      reportTime: p.utc_valid,
+      temp: p.tmpf != null ? parseFloat(((p.tmpf - 32) * 5 / 9).toFixed(1)) : null,
+      dewp: p.dwpf != null ? parseFloat(((p.dwpf - 32) * 5 / 9).toFixed(1)) : null,
+      wdir: p.drct != null ? parseFloat(p.drct) : null,
+      wspd: p.sknt != null ? parseFloat(p.sknt) : null,
+      wgst: p.gust != null ? parseFloat(p.gust) : null,
+      altim: p.alti != null ? Math.round(parseFloat(p.alti) * 33.8639) : null,
+      rawOb: p.raw || ''
+    };
+
+    // Añadir al historial local si es una lectura nueva (evitando duplicados)
+    if (!historialLocal.some(item => item.reportTime === lecturaActual.reportTime)) {
+      historialLocal.push(lecturaActual);
+      // Mantener solo las últimas 48 lecturas (24 horas)
+      if (historialLocal.length > 48) historialLocal.shift();
+      localStorage.setItem('metar_leco_hist', JSON.stringify(historialLocal));
+    }
+
+    ultimaLecturaExitosa = Date.now();
+    const ultimo = historialLocal[historialLocal.length - 1];
+
+    // 1. Temperatura
+    document.getElementById('valTemp').innerText = ultimo.temp != null ? `${ultimo.temp.toFixed(1)}°C` : '--';
+    document.getElementById('valPuntoRocio').innerText = ultimo.dewp != null ? `Rocío: ${ultimo.dewp.toFixed(1)}°C` : '--';
+
+    // 2. Humedad
+    const hrActual = calcularHumedadRelativa(ultimo.temp, ultimo.dewp);
+    document.getElementById('valHumedad').innerText = hrActual != null ? `${hrActual}%` : '--';
+
+    // 3. Presión
+    document.getElementById('valPresion').innerText = ultimo.altim != null ? `${ultimo.altim}` : '--';
+
+    // 4. Viento y Racha
+    const velKmH = ultimo.wspd != null ? (ultimo.wspd * 1.852).toFixed(1) : '--';
+    const dirViento = ultimo.wdir != null ? `${ultimo.wdir}°` : 'Var';
+    document.getElementById('valViento').innerText = `${velKmH}`;
+
+    let textoRacha = `km/h • Rumbo ${dirViento}`;
+    if (ultimo.wgst != null && ultimo.wgst > 0) {
+      textoRacha = `km/h • Racha ${(ultimo.wgst * 1.852).toFixed(1)}`;
+    } else {
+      const maxRacha24h = Math.max(...historialLocal.map(r => r.wgst || 0));
+      if (maxRacha24h > 0) {
+        textoRacha = `km/h • Máx 24h: ${(maxRacha24h * 1.852).toFixed(1)}`;
+      }
+    }
+    document.getElementById('valRacha').innerText = textoRacha;
+
+    // Hora del reporte
+    const f = new Date(ultimo.reportTime);
+    document.getElementById('ultimaActualizacion').innerText = `Reporte: ${f.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}`;
+
+    // Despacho crudo
+    document.getElementById('rawMetar').innerText = ultimo.rawOb || 'Sin despacho';
+
+    // Gráfica
+    chartInstance.data.labels = historialLocal.map(r => {
+      const d = new Date(r.reportTime);
+      return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    });
+    chartInstance.data.datasets[0].data = historialLocal.map(r => r.temp);
+    chartInstance.data.datasets[1].data = historialLocal.map(r => calcularHumedadRelativa(r.temp, r.dewp));
+    chartInstance.data.datasets[2].data = historialLocal.map(r => r.wspd != null ? (r.wspd * 1.852).toFixed(1) : null);
+    chartInstance.data.datasets[3].data = historialLocal.map(r => r.wgst != null ? (r.wgst * 1.852).toFixed(1) : null);
+    chartInstance.update();
+
+    // Visor JSON
+    document.getElementById('jsonViewer').innerText = JSON.stringify(ultimo, null, 2);
+
+    alert.className = 'rounded-xl p-3 text-xs font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 block';
+    const ahoraStr = new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
+    alert.innerText = `[${ahoraStr}] Sincronizado (${historialLocal.length} puntos en memoria).`;
+
+  } catch (e) {
+    alert.className = 'rounded-xl p-3 text-xs font-medium bg-rose-500/10 border border-rose-500/20 text-rose-400 block';
+    alert.innerText = 'Error de conexión: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    icon.classList.remove('fa-spin');
+    txt.innerText = 'Leer Reporte METAR';
+  }
+}
+
+    window.onload = () => {
+      initChart();
+      consultar();
+      setInterval(actualizarReloj, 1000);
+    };
+  </script>
+</body>
+</html>
