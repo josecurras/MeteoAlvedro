@@ -113,14 +113,7 @@
       </div>
     </section>
 
-    <!-- JSON -->
-    <details class="card rounded-2xl overflow-hidden">
-      <summary class="p-4 cursor-pointer font-semibold text-xs sm:text-sm text-slate-400">Ver JSON crudo recibido</summary>
-      <div class="p-3 bg-slate-900 border-t border-slate-800">
-        <pre id="jsonViewer" class="text-[11px] font-mono text-emerald-400 max-h-56 overflow-y-auto whitespace-pre-wrap">Esperando datos...</pre>
-      </div>
-    </details>
-
+  
   </div>
 
   <script>
@@ -308,9 +301,6 @@
     chartInstance.data.datasets[2].data = registros.map(r => r.wspd != null ? (r.wspd * 1.852).toFixed(1) : null);
     chartInstance.data.datasets[3].data = registros.map(r => r.wgst != null ? (r.wgst * 1.852).toFixed(1) : null);
     chartInstance.update();
-
-    // Visor JSON
-    document.getElementById('jsonViewer').innerText = JSON.stringify(registros, null, 2);
 
     alert.className = 'rounded-xl p-3 text-xs font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 block';
     const ahoraStr = new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'});
