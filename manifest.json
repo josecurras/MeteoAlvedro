@@ -1,0 +1,18 @@
+{
+  "name": "Alvedro METAR (LECO)",
+  "short_name": "Alvedro Meteo",
+  "description": "Telemetría meteorológica en tiempo real del Aeropuerto de A Coruña",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1163/1163661.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
